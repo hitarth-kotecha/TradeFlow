@@ -1,0 +1,10 @@
+# Overrides applied only when SPRING_PROFILES_ACTIVE=docker (the app running inside Compose).
+# Concept 2: inside the Compose network, services are reached by their service NAME, not localhost.
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/tradeflow
+  kafka:
+    bootstrap-servers: kafka:9092
+  data:
+    redis:
+      host: redis

@@ -1,0 +1,96 @@
+spring:
+  application:
+    name: tradeflow
+  threads:
+    # NFR-CONC-01: every HTTP request is dispatched on its own virtual thread.
+    # This is the one switch that makes our blocking JDBC/Redis/Kafka handlers scale.
+    virtual:
+      enabled: true
+
+  # Default (host) datasource: Postgres reached on localhost via Compose's published port.
+  # The 'docker' profile overrides the host to the 'postgres' service name (see application-docker.yml).
+  datasource:
+    url: jdbc:postgresql://localhost:5432/tradeflow
+    username: tradeflow
+    password: tradeflow
+
+  # Flyway owns the schema; it runs V1__init.sql on startup and records it in flyway_schema_history.
+  flyway:
+    enabled: true
+
+  # Flyway owns the Spring Batch metadata tables (V2) — Batch must not create them itself.
+  batch:
+    jdbc:
+      initialize-schema: never
+
+  jpa:
+    hibernate:
+      # NEVER let Hibernate change the schema (Flyway owns it). 'validate' only checks that
+      # every @Entity maps to an existing table/column, failing fast on drift.
+      ddl-auto: validate
+    open-in-view: false   # close the persistence context at the service boundary, not in the view
+
+  # Kafka producer for the outbox relay (Concept 2). acks=all + idempotent producer = durable,
+  # de-duplicated sends. String key (tenantId) and String value (the event JSON).
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        enable.idempotence: true
+    consumer:
+      group-id: risk-engine
+      auto-offset-reset: earliest    # a new consumer reads from the start of the log
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+  # Redis for atomic position state (host dev = localhost; the docker profile overrides the host).
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: 6379
+
+server:
+  port: 8080
+
+# OBS-02: expose health, info, metrics, and the Prometheus scrape endpoint.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+  endpoint:
+    health:
+      show-details: always
+
+# NFR-DOC-01: Swagger UI served at /swagger-ui.html (springdoc default), raw spec at /v3/api-docs.
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+# HS256 JWT config. In real deploys JWT_SECRET comes from the environment (NFR-SEC-02);
+# the dev fallback is only for local runs and is intentionally long (HS256 needs >= 256-bit keys).
+app:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-tradeflow-secret-change-me-at-least-32-bytes!!}
+    expiry-seconds: 3600
+  admin:
+    # Platform-admin key for /admin/** (tenant onboarding). From env in real deploys.
+    api-key: ${PLATFORM_ADMIN_KEY:dev-platform-admin-key-change-me}
+  outbox:
+    relay:
+      enabled: true          # the relay polls + publishes; disabled in unit/slice tests
+    poll-interval-ms: 500
+  risk-engine:
+    enabled: true            # the trade.submitted consumer; disabled in tests without Kafka
+  alert-service:
+    enabled: true            # the risk.breached consumer; disabled in tests without Kafka
+  rate-limit:
+    enabled: true            # per-tenant sliding window; disabled in tests without Redis
+    requests: 100            # FR-RATE-03 default: 100 requests
+    window-seconds: 10       #               per 10 seconds
+
+# Profiles (local / docker / test) will diverge once we add Postgres, Redis, and Kafka,
+# whose hostnames differ between running on the host vs inside Docker Compose (Concept 2).

@@ -1,0 +1,13 @@
+# Test defaults: all background features (Kafka consumers, relay, Redis rate limiter) are OFF, so a
+# plain integration test needs no Kafka/Redis. Each test that needs a feature turns it back on via
+# @SpringBootTest(properties="app.<feature>.enabled=true") — which overrides these.
+app:
+  outbox:
+    relay:
+      enabled: false
+  risk-engine:
+    enabled: false
+  alert-service:
+    enabled: false
+  rate-limit:
+    enabled: false

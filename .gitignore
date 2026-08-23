@@ -1,0 +1,16 @@
+# Build output
+target/
+*.class
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# OS / misc
+.DS_Store
+*.log
