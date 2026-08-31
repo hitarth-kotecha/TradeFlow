@@ -491,6 +491,8 @@ All keys are prefixed with the tenant id. **No Redis cluster hash tags** are use
 | Breach dedupe (short TTL) | `tenant:{tenantId}:breach:{tradeId}` | String | TTL 1h, SETNX |
 | Alert subscription auth cache | `tenant:{tenantId}:user:{userId}` | String | optional |
 
+> **Design decision DD-02 (flat keys, no hash tags):** Redis Cluster hashes the whole key name to a slot unless the key contains `{...}`, in which case only the braced text is hashed. Tagging by tenant would pin all of one tenant's keys to a single slot — co-locating them for multi-key ops, but making the busiest tenant an unsplittable hot slot that resharding cannot relieve. Flat prefixes distribute a tenant's symbols across the keyspace instead. Isolation is unaffected either way (it comes from the prefix, present in both). Known cost: the DD-06 script spans two keys (`pos` and `applied`), so on a clustered Redis it would fail `CROSSSLOT`; the migration path is to tag by tenant **×** instrument (`{tenant:<id>:<symbol>}:...`), not by tenant. See docs/DESIGN_DECISIONS.md.
+
 ### 8.2 Atomicity
 
 - Position updates use `INCRBY`/`DECRBY` (atomic) — satisfies FR-POS-03.

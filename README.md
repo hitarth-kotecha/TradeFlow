@@ -9,6 +9,9 @@ Boot 3.5**, it is a spec-driven, learning-focused portfolio project that showcas
 The single source of truth is [TradeFlow_SPEC.md](TradeFlow_SPEC.md); every feature maps to a
 requirement ID (e.g. `FR-TRADE-03`) and has a traceable test (e.g. `T-POS-01`).
 
+Why it is built the way it is — the alternatives considered and what each choice cost — is in
+the **[design-decision log](docs/DESIGN_DECISIONS.md)**.
+
 ---
 
 ## Why it's interesting
@@ -103,6 +106,7 @@ scale and make concurrent fan-out correct.** Three pieces work as one system:
 | ID | Decision |
 |---|---|
 | DD-01 | Modular monolith over microservices; module boundaries communicate via Kafka so a future split is mechanical |
+| DD-02 | Flat tenant-prefixed Redis keys, **no** cluster hash tags — even slot distribution over per-tenant co-location |
 | DD-03 | Transactional **outbox** — trade + event written in one DB transaction, relayed to Kafka (at-least-once, no dual-write loss) |
 | DD-04 | Risk `MONITOR` (async flag) vs `BLOCK` (synchronous reject); default MONITOR |
 | DD-05 | **WAC** cost basis (no lot tracking, deterministic); FIFO deferred |
@@ -111,6 +115,10 @@ scale and make concurrent fan-out correct.** Three pieces work as one system:
 | DD-08 | Target **Java 25** for Loom (virtual threads final, scoped values final, structured concurrency preview) |
 | DD-09 | **`ScopedValue`** over `ThreadLocal` — inherited by structured-concurrency subtasks; immutable, self-cleaning |
 | DD-10 | `StructuredTaskScope` for fan-out reads (not `CompletableFuture`); isolated behind one `common` helper |
+
+Each of these is written up in full — context, alternatives, and what the choice cost — in
+**[docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md)**. DD-09 (`ScopedValue` over `ThreadLocal`)
+and DD-02 (Redis key layout) get the long treatment there.
 
 ---
 
